@@ -1,9 +1,9 @@
 import argparse
-import scipy.misc
 import numpy as np
 from joblib import Parallel, delayed
 from tqdm import tqdm
 from path import Path
+import scipy.misc
 
 parser = argparse.ArgumentParser()
 parser.add_argument("dataset_dir", metavar='DIR',
@@ -25,11 +25,12 @@ parser.add_argument("--depth-size-ratio", type=int, default=1, help="will divide
 parser.add_argument("--num-threads", type=int, default=4, help="number of threads to use")
 
 args = parser.parse_args()
-
+arguments = parser.parse_args()
 
 def dump_example(scene):
     scene_list = data_loader.collect_scenes(scene)
     for scene_data in scene_list:
+        args = arguments
         dump_dir = args.dump_root/scene_data['rel_path']
         dump_dir.makedirs_p()
         intrinsics = scene_data['intrinsics']
@@ -60,6 +61,8 @@ def main():
     args.dump_root = Path(args.dump_root)
     args.dump_root.mkdir_p()
 
+    print(args.dump_root)
+
     global data_loader
 
     if args.dataset_format == 'kitti':
@@ -83,6 +86,7 @@ def main():
         for scene in tqdm(data_loader.scenes):
             dump_example(scene)
     else:
+        print("test", args)
         Parallel(n_jobs=args.num_threads)(delayed(dump_example)(scene) for scene in tqdm(data_loader.scenes))
 
     print('Generating train val lists')

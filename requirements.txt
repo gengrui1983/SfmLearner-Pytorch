@@ -1,4 +1,5 @@
-torch >= 0.4.1
+numpy
+
 imageio
 scipy
 argparse

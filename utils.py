@@ -56,6 +56,7 @@ def tensor2array(tensor, max_value=255, colormap='rainbow'):
         except ImportError:
             if tensor.ndimension() == 2:
                 tensor.unsqueeze_(2)
+            print(tensor.size(0), tensor.size())
             array = (tensor.expand(tensor.size(0), tensor.size(1), 3).numpy()/max_value).clip(0,1)
         array = array.transpose(2, 0, 1)
 
