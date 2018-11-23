@@ -1,8 +1,10 @@
 from __future__ import division
-import numpy as np
-from path import Path
-import scipy.misc
+
 from collections import Counter
+
+import numpy as np
+import scipy.misc
+from path import Path
 
 
 def rotx(t):
@@ -87,6 +89,8 @@ def transform_from_rot_trans(R, t):
 class KittiRawLoader(object):
     def __init__(self,
                  dataset_dir,
+                 segmentation_dir,
+                 boundary_dir,
                  static_frames_file=None,
                  img_height=128,
                  img_width=416,
@@ -106,6 +110,8 @@ class KittiRawLoader(object):
             test_scenes = f.readlines()
         self.test_scenes = [t[:-1] for t in test_scenes]
         self.dataset_dir = Path(dataset_dir)
+        self.segmentation_dir = Path(segmentation_dir)
+        self.boundary_dir = Path(boundary_dir)
         self.img_height = img_height
         self.img_width = img_width
         self.cam_ids = ['02', '03']

@@ -1,14 +1,15 @@
-import torch
+import argparse
 
+import cv2
+import numpy as np
+import torch
+from path import Path
 from scipy.misc import imresize
 from scipy.ndimage.interpolation import zoom
-import numpy as np
-from path import Path
-import argparse
 from tqdm import tqdm
 
+from inverse_warp import inverse_warp
 from models import DispNetS, PoseExpNet
-
 
 parser = argparse.ArgumentParser(description='Script for DispNet testing with corresponding groundTruth',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -22,7 +23,9 @@ parser.add_argument("--max-depth", default=80)
 
 parser.add_argument("--dataset-dir", default='.', type=str, help="Dataset directory")
 parser.add_argument("--dataset-list", default=None, type=str, help="Dataset list file")
+parser.add_argument("--intrinsics-dir", default=None, type=str, help="Intrinsics dir")
 parser.add_argument("--output-dir", default=None, type=str, help="Output directory for saving predictions in a big 3D numpy file")
+parser.add_argument("--output-image-dir", default=None, type=str, help="Output directory for saving warped images")
 
 parser.add_argument("--gt-type", default='KITTI', type=str, help="GroundTruth data type", choices=['npy', 'png', 'KITTI', 'stillbox'])
 parser.add_argument("--img-exts", default=['png', 'jpg', 'bmp'], nargs='*', type=str, help="images extensions to glob")
@@ -50,7 +53,7 @@ def main():
     else:
         weights = torch.load(args.pretrained_posenet)
         seq_length = int(weights['state_dict']['conv1.0.weight'].size(1)/3)
-        pose_net = PoseExpNet(nb_ref_imgs=seq_length - 1, output_exp=False).to(device)
+        pose_net = PoseExpNet(nb_ref_imgs=seq_length - 1, output_exp=True).to(device)
         pose_net.load_state_dict(weights['state_dict'], strict=False)
 
     dataset_dir = Path(args.dataset_dir)
@@ -67,6 +70,11 @@ def main():
     if args.output_dir is not None:
         output_dir = Path(args.output_dir)
         output_dir.makedirs_p()
+
+    output_image_dir = None
+    if args.output_image_dir is not None:
+        output_image_dir = Path(args.output_image_dir)
+        output_image_dir.makedirs_p()
 
     for j, sample in enumerate(tqdm(framework)):
         tgt_img = sample['tgt']
@@ -113,8 +121,14 @@ def main():
             middle_index = seq_length//2
             tgt = ref_imgs[middle_index]
             reorganized_refs = ref_imgs[:middle_index] + ref_imgs[middle_index + 1:]
-            _, poses = pose_net(tgt, reorganized_refs)
+            explainability_mask, poses = pose_net(tgt, reorganized_refs)
             mean_displacement_magnitude = poses[0,:,:3].norm(2,1).mean().item()
+
+            intrinsics = sample['intrinsics']
+            intrinsics_inv = np.linalg.inv(intrinsics)
+            warped_img = inverse_warp(tgt_img, pred_depth_zoomed,
+                                      poses, intrinsics, intrinsics_inv)
+            cv2.imwrite(output_image_dir / tgt_img, warped_img)
 
             scale_factor = sample['displacement'] / mean_displacement_magnitude
             errors[0,:,j] = compute_errors(gt_depth, pred_depth_zoomed*scale_factor)

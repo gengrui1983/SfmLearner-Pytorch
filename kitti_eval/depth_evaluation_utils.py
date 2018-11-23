@@ -1,7 +1,8 @@
 # Mostly based on the code written by Clement Godard:
 # https://github.com/mrharicot/monodepth/blob/master/utils/evaluation_utils.py
-import numpy as np
 from collections import Counter
+
+import numpy as np
 from path import Path
 from scipy.misc import imread
 from tqdm import tqdm
@@ -11,7 +12,8 @@ class test_framework_KITTI(object):
     def __init__(self, root, test_files, seq_length=3, min_depth=1e-3, max_depth=100, step=1):
         self.root = root
         self.min_depth, self.max_depth = min_depth, max_depth
-        self.calib_dirs, self.gt_files, self.img_files, self.displacements, self.cams = read_scene_data(self.root, test_files, seq_length, step)
+        self.calib_dirs, self.gt_files, self.img_files, self.displacements, self.cams, self.intrinsics = read_scene_data(
+            self.root, test_files, seq_length, step)
 
     def __getitem__(self, i):
         tgt = imread(self.img_files[i][0]).astype(np.float32)
@@ -20,6 +22,7 @@ class test_framework_KITTI(object):
                 'ref': [imread(img).astype(np.float32) for img in self.img_files[i][1]],
                 'path':self.img_files[i][0],
                 'gt_depth': depth,
+                'intrinsic': self.intrinsic,
                 'displacement': np.array(self.displacements[i]),
                 'mask': generate_mask(depth, self.min_depth, self.max_depth)
                 }
@@ -78,10 +81,13 @@ def read_scene_data(data_root, test_list, seq_length=3, step=1):
     displacements = []
     demi_length = (seq_length - 1) // 2
     shift_range = step * np.arange(-demi_length, demi_length + 1)
+    intrinsics = None
 
     print('getting test metadata ... ')
     for sample in tqdm(test_list):
         tgt_img_path = data_root/sample
+        print(tgt_img_path)
+        print(sample, sample[:-4], sample[:-4].split('/'))
         date, scene, cam_id, _, index = sample[:-4].split('/')
 
         scene_length = len(tgt_img_path.parent.files('*.png'))
@@ -90,6 +96,8 @@ def read_scene_data(data_root, test_list, seq_length=3, step=1):
 
         ref_imgs_path = [tgt_img_path.dirname()/'{:010d}.png'.format(i) for i in ref_indices]
         vel_path = data_root/date/scene/'velodyne_points'/'data'/'{}.bin'.format(index[:10])
+
+        intrinsics = np.genfromtxt(data_root / date / scene / 'cam.txt').astype(np.float32).reshape((3, 3))
 
         if tgt_img_path.isfile():
             gt_files.append(vel_path)
@@ -101,7 +109,7 @@ def read_scene_data(data_root, test_list, seq_length=3, step=1):
             print('{} missing'.format(tgt_img_path))
     # print(num_probs, 'files missing')
 
-    return calib_dirs, gt_files, im_files, displacements, cams
+    return calib_dirs, gt_files, im_files, displacements, cams, intrinsics
 
 
 def load_velodyne_points(file_name):

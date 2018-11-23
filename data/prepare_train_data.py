@@ -1,9 +1,10 @@
 import argparse
+
 import numpy as np
-from joblib import Parallel, delayed
-from tqdm import tqdm
-from path import Path
 import scipy.misc
+from joblib import Parallel, delayed
+from path import Path
+from tqdm import tqdm
 
 parser = argparse.ArgumentParser()
 parser.add_argument("dataset_dir", metavar='DIR',
@@ -23,6 +24,9 @@ parser.add_argument("--height", type=int, default=128, help="image height")
 parser.add_argument("--width", type=int, default=416, help="image width")
 parser.add_argument("--depth-size-ratio", type=int, default=1, help="will divide depth size by that ratio")
 parser.add_argument("--num-threads", type=int, default=4, help="number of threads to use")
+parser.add_argument("--segmentation-root", type=str, default='segmentation',
+                    help="The directory of segmentation images")
+parser.add_argument("--boundary-root", type=str, default='boundary', help="The directory of boundary images")
 
 args = parser.parse_args()
 arguments = parser.parse_args()
@@ -68,6 +72,8 @@ def main():
     if args.dataset_format == 'kitti':
         from kitti_raw_loader import KittiRawLoader
         data_loader = KittiRawLoader(args.dataset_dir,
+                                     args.segmentation_dir,
+                                     args.boundary_dir,
                                      static_frames_file=args.static_frames,
                                      img_height=args.height,
                                      img_width=args.width,

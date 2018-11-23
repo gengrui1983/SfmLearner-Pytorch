@@ -1,7 +1,9 @@
 from __future__ import division
-import torch
+
 import random
+
 import numpy as np
+import torch
 from scipy.misc import imresize
 
 '''Set of tranform random routines that takes list of inputs as arguments,
@@ -18,6 +20,15 @@ class Compose(object):
         return images, intrinsics
 
 
+class ComposeWithoutINstrinsics(object):
+    def __init__(self, transforms):
+        self.transforms = transforms
+
+    def __call__(self, images):
+        for t in self.transforms:
+            images = t(images)
+        return images
+
 class Normalize(object):
     def __init__(self, mean, std):
         self.mean = mean
@@ -28,6 +39,17 @@ class Normalize(object):
             for t, m, s in zip(tensor, self.mean, self.std):
                 t.sub_(m).div_(s)
         return images, intrinsics
+
+
+class NormalizeWithoutInstrinsics(object):
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, image):
+        for t, m, s in zip(image, self.mean, self.std):
+            t.sub_(m).div_(s)
+        return image
 
 
 class ArrayToTensor(object):
@@ -41,6 +63,16 @@ class ArrayToTensor(object):
             # handle numpy array
             tensors.append(torch.from_numpy(im).float()/255)
         return tensors, intrinsics
+
+
+class ArrayToTensorWithoutInstrinsic(object):
+    """Converts a list of numpy.ndarray (H x W x C) along with a intrinsics matrix to a list of torch.FloatTensor of shape (C x H x W) with a intrinsics tensor."""
+
+    def __call__(self, im):
+        # put it from HWC to CHW format
+        im = np.transpose(im, (2, 0, 1))
+        # handle numpy array
+        return torch.from_numpy(im).float() / 255
 
 
 class RandomHorizontalFlip(object):

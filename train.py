@@ -1,29 +1,33 @@
 import argparse
-import time
 import csv
+import os
+import time
 
+import cv2
 import numpy as np
 import torch
-from torch.autograd import Variable
 import torch.backends.cudnn as cudnn
-import torch.optim
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.optim
 import torch.utils.data
+from path import Path
+from tensorboardX import SummaryWriter
+
 import custom_transforms
 import models
-from utils import tensor2array, save_checkpoint, save_path_formatter
 from inverse_warp import inverse_warp
-
-from loss_functions import photometric_reconstruction_loss, explainability_loss, smooth_loss, compute_errors
 from logger import TermLogger, AverageMeter
-from tensorboardX import SummaryWriter
+from loss_functions import photometric_reconstruction_loss, explainability_loss, smooth_loss, compute_errors
+from utils import tensor2array, save_checkpoint, save_path_formatter
 
 parser = argparse.ArgumentParser(description='Structure from Motion Learner training on KITTI and CityScapes Dataset',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 parser.add_argument('data', metavar='DIR',
                     help='path to dataset')
+parser.add_argument("--segmentation", metavar='DIR', help="The directory of segmentation images")
+parser.add_argument("--boundary", metavar='DIR', help="The directory of boundary images")
 parser.add_argument('--dataset-format', default='sequential', metavar='STR',
                     help='dataset format, stacked: stacked frames (from original TensorFlow code) \
                     sequential: sequential folders (easier to convert to with a non KITTI/Cityscape dataset')
@@ -56,6 +60,7 @@ parser.add_argument('--print-freq', default=10, type=int,
                     metavar='N', help='print frequency')
 parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                     help='evaluate model on validation set')
+parser.add_argument('--output-dir', dest='output_dir', default=None, metavar='PATH', help='path of output image')
 parser.add_argument('--pretrained-disp', dest='pretrained_disp', default=None, metavar='PATH',
                     help='path to pre-trained dispnet model')
 parser.add_argument('--pretrained-exppose', dest='pretrained_exp_pose', default=None, metavar='PATH',
@@ -113,6 +118,8 @@ def main():
     print("=> fetching scenes in '{}'".format(args.data))
     train_set = SequenceFolder(
         args.data,
+        args.segmentation,
+        args.boundary,
         transform=train_transform,
         seed=args.seed,
         train=True,
@@ -129,6 +136,8 @@ def main():
     else:
         val_set = SequenceFolder(
             args.data,
+            segmentation=args.segmentation,
+            boundary=args.boundary,
             transform=valid_transform,
             seed=args.seed,
             train=False,
@@ -204,49 +213,51 @@ def main():
             training_writer.add_scalar(name, error, 0)
         error_string = ', '.join('{} : {:.3f}'.format(name, error) for name, error in zip(error_names[2:9], errors[2:9]))
         logger.valid_writer.write(' * Avg {}'.format(error_string))
+    else:
+        for epoch in range(args.epochs):
+            logger.epoch_bar.update(epoch)
 
-    for epoch in range(args.epochs):
-        logger.epoch_bar.update(epoch)
+            # train for one epoch
+            logger.reset_train_bar()
+            train_loss = train(args, train_loader, disp_net, pose_exp_net, optimizer, args.epoch_size, logger,
+                               training_writer)
+            logger.train_writer.write(' * Avg Loss : {:.3f}'.format(train_loss))
 
-        # train for one epoch
-        logger.reset_train_bar()
-        train_loss = train(args, train_loader, disp_net, pose_exp_net, optimizer, args.epoch_size, logger, training_writer)
-        logger.train_writer.write(' * Avg Loss : {:.3f}'.format(train_loss))
+            # evaluate on validation set
+            logger.reset_valid_bar()
+            if args.with_gt:
+                errors, error_names = validate_with_gt(args, val_loader, disp_net, epoch, logger, output_writers)
+            else:
+                errors, error_names = validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
+                                                          output_writers)
+            error_string = ', '.join('{} : {:.3f}'.format(name, error) for name, error in zip(error_names, errors))
+            logger.valid_writer.write(' * Avg {}'.format(error_string))
 
-        # evaluate on validation set
-        logger.reset_valid_bar()
-        if args.with_gt:
-            errors, error_names = validate_with_gt(args, val_loader, disp_net, epoch, logger, output_writers)
-        else:
-            errors, error_names = validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger, output_writers)
-        error_string = ', '.join('{} : {:.3f}'.format(name, error) for name, error in zip(error_names, errors))
-        logger.valid_writer.write(' * Avg {}'.format(error_string))
+            for error, name in zip(errors, error_names):
+                training_writer.add_scalar(name, error, epoch)
 
-        for error, name in zip(errors, error_names):
-            training_writer.add_scalar(name, error, epoch)
+            # Up to you to chose the most relevant error to measure your model's performance, careful some measures are to maximize (such as a1,a2,a3)
+            decisive_error = errors[1]
+            if best_error < 0:
+                best_error = decisive_error
 
-        # Up to you to chose the most relevant error to measure your model's performance, careful some measures are to maximize (such as a1,a2,a3)
-        decisive_error = errors[1]
-        if best_error < 0:
-            best_error = decisive_error
+            # remember lowest error and save checkpoint
+            is_best = decisive_error < best_error
+            best_error = min(best_error, decisive_error)
+            save_checkpoint(
+                args.save_path, {
+                    'epoch': epoch + 1,
+                    'state_dict': disp_net.module.state_dict()
+                }, {
+                    'epoch': epoch + 1,
+                    'state_dict': pose_exp_net.module.state_dict()
+                },
+                is_best)
 
-        # remember lowest error and save checkpoint
-        is_best = decisive_error < best_error
-        best_error = min(best_error, decisive_error)
-        save_checkpoint(
-            args.save_path, {
-                'epoch': epoch + 1,
-                'state_dict': disp_net.module.state_dict()
-            }, {
-                'epoch': epoch + 1,
-                'state_dict': pose_exp_net.module.state_dict()
-            },
-            is_best)
-
-        with open(args.save_path/args.log_summary, 'a') as csvfile:
-            writer = csv.writer(csvfile, delimiter='\t')
-            writer.writerow([train_loss, decisive_error])
-    logger.epoch_bar.finish()
+            with open(args.save_path / args.log_summary, 'a') as csvfile:
+                writer = csv.writer(csvfile, delimiter='\t')
+                writer.writerow([train_loss, decisive_error])
+        logger.epoch_bar.finish()
 
 
 def train(args, train_loader, disp_net, pose_exp_net, optimizer, epoch_size, logger, train_writer):
@@ -263,29 +274,35 @@ def train(args, train_loader, disp_net, pose_exp_net, optimizer, epoch_size, log
     end = time.time()
     logger.train_bar.update(0)
 
-    for i, (tgt_img, intrinsics, intrinsics_inv, pose) in enumerate(train_loader):
+    for i, (tgt_img, ref_imgs, seg, boundary, ref_segs, ref_boundaries,
+            intrinsics, intrinsics_inv, sample) in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
         tgt_img = tgt_img.to(device)
         ref_imgs = [img.to(device) for img in ref_imgs]
+        seg = seg.to(device)
+        # boundary = boundary.to(device)
+        ref_segs = [seg.to(device) for seg in ref_segs]
+        # ref_boundaries = [b.to(device) for b in ref_boundaries]
         intrinsics = intrinsics.to(device)
         intrinsics_inv = intrinsics_inv.to(device)
 
         # compute output
-        disparities = disp_net(tgt_img)
-        depth = [1/disp for disp in disparities]
-        explainability_mask, pose = pose_exp_net(tgt_img, ref_imgs)
+        disparities_seg = disp_net(seg)
+        # disparities_boundary = disp_net(boundary)
+        depth_seg = [1 / disp for disp in disparities_seg]
+        # depth_boundary = [1/disp for disp in disparities_boundary]
+        explainability_mask, pose = pose_exp_net(seg, ref_segs)
 
-        loss_1 = photometric_reconstruction_loss(tgt_img, ref_imgs,
+        loss_1 = photometric_reconstruction_loss(seg, ref_segs,
                                                  intrinsics, intrinsics_inv,
-                                                 depth, explainability_mask, pose,
+                                                 depth_seg, explainability_mask, pose,
                                                  args.rotation_mode, args.padding_mode)
         if w2 > 0:
             loss_2 = explainability_loss(explainability_mask)
         else:
             loss_2 = 0
-        loss_3 = smooth_loss(depth)
-
+        loss_3 = smooth_loss(depth_seg)
         loss = w1*loss_1 + w2*loss_2 + w3*loss_3
 
         if i > 0 and n_iter % args.print_freq == 0:
@@ -297,26 +314,26 @@ def train(args, train_loader, disp_net, pose_exp_net, optimizer, epoch_size, log
 
         if args.training_output_freq > 0 and n_iter % args.training_output_freq == 0:
 
-            train_writer.add_image('train Input', tensor2array(tgt_img[0]), n_iter)
+            train_writer.add_image('train Input', tensor2array(seg[0]), n_iter)
 
-            for k, scaled_depth in enumerate(depth):
+            for k, scaled_depth in enumerate(depth_seg):
                 train_writer.add_image('train Dispnet Output Normalized {}'.format(k),
-                                       tensor2array(disparities[k][0], max_value=None, colormap='bone'),
+                                       tensor2array(disparities_seg[k][0], max_value=None, colormap='bone'),
                                        n_iter)
                 train_writer.add_image('train Depth Output Normalized {}'.format(k),
-                                       tensor2array(1/disparities[k][0], max_value=None),
+                                       tensor2array(1 / disparities_seg[k][0], max_value=None),
                                        n_iter)
                 b, _, h, w = scaled_depth.size()
-                downscale = tgt_img.size(2)/h
+                downscale = seg.size(2) / h
 
-                tgt_img_scaled = F.interpolate(tgt_img, (h, w), method='area', align_corners=False)
-                ref_imgs_scaled = [nn.functional.adaptive_avg_pool2d(ref_img, (h, w)) for ref_img in ref_imgs]
+                seg_scaled = F.interpolate(seg, (h, w), method='area', align_corners=False)
+                ref_seg_scaled = [nn.functional.adaptive_avg_pool2d(ref_seg, (h, w)) for ref_seg in ref_segs]
 
                 intrinsics_scaled = torch.cat((intrinsics[:, 0:2]/downscale, intrinsics[:, 2:]), dim=1)
                 intrinsics_scaled_inv = torch.cat((intrinsics_inv[:, :, 0:2]*downscale, intrinsics_inv[:, :, 2:]), dim=2)
 
                 # log warped images along with explainability mask
-                for j,ref in enumerate(ref_imgs_scaled):
+                for j, ref in enumerate(ref_seg_scaled):
                     ref_warped = inverse_warp(ref, scaled_depth[:,0], pose[:,j],
                                               intrinsics_scaled, intrinsics_scaled_inv,
                                               rotation_mode=args.rotation_mode,
@@ -325,7 +342,7 @@ def train(args, train_loader, disp_net, pose_exp_net, optimizer, epoch_size, log
                                            tensor2array(ref_warped),
                                            n_iter)
                     train_writer.add_image('train Diff Outputs {} {}'.format(k,j),
-                                           tensor2array(0.5*(tgt_img_scaled[0] - ref_warped).abs()),
+                                           tensor2array(0.5 * (seg_scaled[0] - ref_warped).abs()),
                                            n_iter)
                     if explainability_mask[k] is not None:
                         train_writer.add_image('train Exp mask Outputs {} {}'.format(k,j),
@@ -374,18 +391,30 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
 
     end = time.time()
     logger.valid_bar.update(0)
-    for i, (tgt_img, ref_imgs, intrinsics, intrinsics_inv) in enumerate(val_loader):
+
+    output_imgs = []
+    output_img_names = []
+
+    for i, (tgt_img, ref_imgs, seg, boundary, ref_segs,
+            ref_boundaries, intrinsics, intrinsics_inv, sample) in enumerate(val_loader):
+        print("val loader", i, "output_writer:", len(output_writers))
+        print(i, sample["ref_seg"])
+
         tgt_img = tgt_img.to(device)
         ref_imgs = [img.to(device) for img in ref_imgs]
+        seg = seg.to(device)
+        ref_segs = [img.to(device) for img in ref_segs]
+        boundary = boundary.to(device)
+        ref_boundaries = [img.to(device) for img in ref_boundaries]
         intrinsics = intrinsics.to(device)
         intrinsics_inv = intrinsics_inv.to(device)
 
         # compute output
-        disp = disp_net(tgt_img)
+        disp = disp_net(seg)
         depth = 1/disp
-        explainability_mask, pose = pose_exp_net(tgt_img, ref_imgs)
+        explainability_mask, pose = pose_exp_net(seg, ref_segs)
 
-        loss_1 = photometric_reconstruction_loss(tgt_img, ref_imgs,
+        loss_1 = photometric_reconstruction_loss(seg, ref_segs,
                                                  intrinsics, intrinsics_inv,
                                                  depth, explainability_mask, pose,
                                                  args.rotation_mode, args.padding_mode)
@@ -396,35 +425,59 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
             loss_2 = 0
         loss_3 = smooth_loss(depth).item()
 
-        if log_outputs and i < len(output_writers):  # log first output of every 100 batch
-            if epoch == 0:
-                for j,ref in enumerate(ref_imgs):
-                    output_writers[i].add_image('val Input {}'.format(j), tensor2array(tgt_img[0]), 0)
+        # if log_outputs and i < len(output_writers):  # log first output of every 100 batch
+        if log_outputs:  # log first output of every 100 batch
+            if epoch == 0 and i < len(output_writers):
+                for j, ref in enumerate(ref_segs):
+                    output_writers[i].add_image('val Input {}'.format(j), tensor2array(seg[0]), 0)
                     output_writers[i].add_image('val Input {}'.format(j), tensor2array(ref[0]), 1)
 
-            output_writers[i].add_image('val Dispnet Output Normalized',
-                                        tensor2array(disp[0], max_value=None, colormap='bone'),
-                                        epoch)
-            output_writers[i].add_image('val Depth Output Normalized',
-                                        tensor2array(1./disp[0], max_value=None),
-                                        epoch)
+            if i < len(output_writers):
+                output_writers[i].add_image('val Dispnet Output Normalized',
+                                            tensor2array(disp[0], max_value=None, colormap='bone'),
+                                            epoch)
+                output_writers[i].add_image('val Depth Output Normalized',
+                                            tensor2array(1. / disp[0], max_value=None),
+                                            epoch)
+
             # log warped images along with explainability mask
-            for j,ref in enumerate(ref_imgs):
+            for j, ref in enumerate(ref_segs):
                 ref_warped = inverse_warp(ref[:1], depth[:1,0], pose[:1,j],
                                           intrinsics[:1], intrinsics_inv[:1],
                                           rotation_mode=args.rotation_mode,
                                           padding_mode=args.padding_mode)[0]
 
-                output_writers[i].add_image('val Warped Outputs {}'.format(j),
-                                            tensor2array(ref_warped),
-                                            epoch)
-                output_writers[i].add_image('val Diff Outputs {}'.format(j),
-                                            tensor2array(0.5*(tgt_img[0] - ref_warped).abs()),
-                                            epoch)
-                if explainability_mask is not None:
-                    output_writers[i].add_image('val Exp mask Outputs {}'.format(j),
-                                                tensor2array(explainability_mask[0,j], max_value=1, colormap='bone'),
+                seg_paths = sample['seg'][j].split("/")
+                scene = seg_paths[-2]
+                img_name = seg_paths[-1]
+
+                path = Path(args.output_dir) / scene
+
+                if not os.path.exists(path):
+                    os.makedirs(path)
+
+                output_img = tensor2array(ref_warped) * 255
+                # output_img = np.transpose(output_img, (shape[1], shape[2], shape[0]))
+                output_img = np.einsum('CWH->WHC', output_img)
+                assert output_img.shape[2] == 3
+                # print(path/img_name)
+
+                output_imgs.append(output_img)
+                output_img_names.append(path / img_name)
+                cv2.imwrite(path / img_name, output_img)
+
+                if i < len(output_writers):
+                    output_writers[i].add_image('val Warped Outputs {}'.format(j),
+                                                tensor2array(ref_warped),
                                                 epoch)
+                    output_writers[i].add_image('val Diff Outputs {}'.format(j),
+                                                tensor2array(0.5 * (seg[0] - ref_warped).abs()),
+                                                epoch)
+                    if explainability_mask is not None:
+                        output_writers[i].add_image('val Exp mask Outputs {}'.format(j),
+                                                    tensor2array(explainability_mask[0, j], max_value=1,
+                                                                 colormap='bone'),
+                                                    epoch)
 
         if log_outputs and i < len(val_loader)-1:
             step = args.batch_size*(args.sequence_length-1)
@@ -455,6 +508,8 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
             output_writers[0].add_histogram('{} {}'.format(prefix, coeffs_names[i]), poses[:,i], epoch)
         output_writers[0].add_histogram('disp_values', disp_values, epoch)
     logger.valid_bar.update(len(val_loader))
+
+    # print("images names:", output_img_names, len(output_img_names))
     return losses.avg, ['Total loss', 'Photo loss', 'Exp loss']
 
 
