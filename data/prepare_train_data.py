@@ -72,8 +72,6 @@ def main():
     if args.dataset_format == 'kitti':
         from kitti_raw_loader import KittiRawLoader
         data_loader = KittiRawLoader(args.dataset_dir,
-                                     args.segmentation_dir,
-                                     args.boundary_dir,
                                      static_frames_file=args.static_frames,
                                      img_height=args.height,
                                      img_width=args.width,
@@ -101,18 +99,22 @@ def main():
     subdirs = args.dump_root.dirs()
     canonic_prefixes = set([subdir.basename()[:-2] for subdir in subdirs])
     with open(args.dump_root / 'train.txt', 'w') as tf:
-        with open(args.dump_root / 'val.txt', 'w') as vf:
-            for pr in tqdm(canonic_prefixes):
-                corresponding_dirs = args.dump_root.dirs('{}*'.format(pr))
-                if np.random.random() < 0.1:
-                    for s in corresponding_dirs:
-                        vf.write('{}\n'.format(s.name))
-                else:
-                    for s in corresponding_dirs:
-                        tf.write('{}\n'.format(s.name))
-                        if args.with_depth and args.no_train_gt:
-                            for gt_file in s.files('*.npy'):
-                                gt_file.remove_p()
+        with open(args.dump_root / 'train_pix2pix.txt', 'w') as pf:
+            with open(args.dump_root / 'val.txt', 'w') as vf:
+                for pr in tqdm(canonic_prefixes):
+                    corresponding_dirs = args.dump_root.dirs('{}*'.format(pr))
+                    if np.random.random() < 0.1:
+                        for s in corresponding_dirs:
+                            vf.write('{}\n'.format(s.name))
+                    elif np.random.random() < 0.5:
+                        for s in corresponding_dirs:
+                            pf.write('{}\n'.format(s.name))
+                    else:
+                        for s in corresponding_dirs:
+                            tf.write('{}\n'.format(s.name))
+                            if args.with_depth and args.no_train_gt:
+                                for gt_file in s.files('*.npy'):
+                                    gt_file.remove_p()
 
 
 if __name__ == '__main__':

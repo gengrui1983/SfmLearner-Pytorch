@@ -131,6 +131,8 @@ class Visualizer():
         image_dir = webpage.get_image_dir()
         short_path = ntpath.basename(image_path[0])
         name = os.path.splitext(short_path)[0]
+        scene_path = image_path.split('/')[0]
+        image_short_name = image_path.split('/')[1]
 
         webpage.add_header(name)
         ims = []
@@ -138,14 +140,37 @@ class Visualizer():
         links = []
 
         for label, im in visuals.items():
-            image_name = '%s_%s.png' % (name, label)
+
+            save_folder = os.path.join(image_dir, scene_path)
+            if not os.path.exists(save_folder):
+                os.makedirs(save_folder)
+
+            image_name = '%s_%s.png' % (image_path, label)
             save_path = os.path.join(image_dir, image_name)
+            print(image_dir, label, image_name)
+            save_label_folder = os.path.join(image_dir, scene_path, label)
+            print("save label path", save_label_folder)
+
+            if not os.path.exists(save_label_folder):
+                os.makedirs(save_label_folder)
+
+            image_label_name = os.path.join(save_label_folder, "{}.png".format(image_short_name))
+
+            print("image label path", image_label_name)
             h, w, _ = im.shape
+            print("image label path", image_label_name)
             if aspect_ratio > 1.0:
                 im = imresize(im, (h, int(w * aspect_ratio)), interp='bicubic')
             if aspect_ratio < 1.0:
                 im = imresize(im, (int(h / aspect_ratio), w), interp='bicubic')
             util.save_image(im, save_path)
+            util.save_image(im, image_label_name)
+            print("========================================")
+            print("label", label, ", save path:", save_path)
+            print("short path", short_path, ", name", name)
+            print("image path", image_path)
+            print("image label path", image_label_name)
+            print("========================================")
 
             ims.append(image_name)
             txts.append(label)

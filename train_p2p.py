@@ -161,7 +161,7 @@ def main():
         iter_data_time = time.time()
         epoch_iter = 0
 
-        for i, (_, _, _, _, _, _, _, _, _, data) in enumerate(train_loader):
+        for i, (_, _, _, _, _, _, _, data) in enumerate(train_loader):
 
             iter_start_time = time.time()
             if total_steps % opt.print_freq == 0:

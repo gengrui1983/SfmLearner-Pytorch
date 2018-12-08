@@ -53,6 +53,16 @@ class BaseModel():
         save_path = os.path.join(self.save_dir, save_filename)
         network.load_state_dict(torch.load(save_path))
 
+        print("***********************")
+        print("***********************")
+        print("***********************")
+        print("***********************")
+        print(save_path)
+        print("***********************")
+        print("***********************")
+        print("***********************")
+        print("***********************")
+
     # update learning rate (called once every epoch)
     def update_learning_rate(self):
         for scheduler in self.schedulers:

@@ -19,6 +19,7 @@ class BaseOptions():
         self.parser.add_argument('--dataset_format', default='sequential', help='path to images')
         self.parser.add_argument('--seed', type=int, default=100, help='path to images')
         self.parser.add_argument('--save_path', required=True, help='the path to save images')
+        self.parser.add_argument('--results_dir', required=False, help='the path to save final images')
         self.parser.add_argument('--log_output', action='store_true', help='the path to save images')
         self.parser.add_argument('--batchSize', type=int, default=1, help='input batch size')
         self.parser.add_argument('--loadSize', type=int, default=286, help='scale images to this size')

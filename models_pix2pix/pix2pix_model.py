@@ -27,6 +27,8 @@ class Pix2PixModel(BaseModel):
                                           opt.which_model_netD,
                                           opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, self.gpu_ids,
                                           not opt.no_ganFeat_loss)
+
+        print("istrain:", self.isTrain)
         if not self.isTrain or opt.continue_train:
             self.load_network(self.netG, 'G', opt.which_epoch)
             if self.isTrain:
@@ -65,6 +67,7 @@ class Pix2PixModel(BaseModel):
             input_B = input_B.cuda(self.gpu_ids[0], async=True)
         self.input_A = input_A
         self.input_B = input_B
+        self.image_paths = ""
         # self.image_paths = input['A_paths' if AtoB else 'B_paths']
 
     def forward(self):

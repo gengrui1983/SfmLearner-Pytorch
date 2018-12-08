@@ -51,5 +51,8 @@ class TrainOptions(BaseOptions):
                                  help='if specified, do *not* use discriminator feature matching loss')
         self.parser.add_argument('--workers', type=int, default=4, help='The number of workers in DataLoader')
         self.parser.add_argument('--epoch_size', type=int, default=0, help='The number of workers in DataLoader')
+        self.parser.add_argument('--how_many', type=int, default=50, help='How many test data')
+        self.parser.add_argument('--use_dist', action='store_false', help='If use dist')
+        self.parser.add_argument('--aspect_ratio', type=float, default=1.0, help='The aspect ratio of the image.')
 
         self.isTrain = True

@@ -89,8 +89,6 @@ def transform_from_rot_trans(R, t):
 class KittiRawLoader(object):
     def __init__(self,
                  dataset_dir,
-                 segmentation_dir,
-                 boundary_dir,
                  static_frames_file=None,
                  img_height=128,
                  img_width=416,
@@ -110,13 +108,11 @@ class KittiRawLoader(object):
             test_scenes = f.readlines()
         self.test_scenes = [t[:-1] for t in test_scenes]
         self.dataset_dir = Path(dataset_dir)
-        self.segmentation_dir = Path(segmentation_dir)
-        self.boundary_dir = Path(boundary_dir)
         self.img_height = img_height
         self.img_width = img_width
         self.cam_ids = ['02', '03']
-        # self.date_list = ['2011_09_26', '2011_09_28', '2011_09_29', '2011_09_30', '2011_10_03']
-        self.date_list = ['2011_09_26']
+        self.date_list = ['2011_09_26', '2011_09_28', '2011_09_29', '2011_09_30', '2011_10_03']
+        # self.date_list = ['2011_09_26']
         self.min_speed = min_speed
         self.get_depth = get_depth
         self.get_pose = get_pose
@@ -223,12 +219,20 @@ class KittiRawLoader(object):
 
     def load_image(self, scene_data, tgt_idx):
         img_file = scene_data['dir']/'image_{}'.format(scene_data['cid'])/'data'/scene_data['frame_id'][tgt_idx]+'.png'
+        # img_file = Path("./../data/KITTI_origin/2011_09_30/2011_09_30_drive_0028_sync/image_03/data/0000000796.png")
         if not img_file.isfile():
             return None
         img = scipy.misc.imread(img_file)
-        zoom_y = self.img_height/img.shape[0]
-        zoom_x = self.img_width/img.shape[1]
-        img = scipy.misc.imresize(img, (self.img_height, self.img_width))
+        zoom_x, zoom_y = None, None
+        try:
+            zoom_y = self.img_height / img.shape[0]
+            zoom_x = self.img_width / img.shape[1]
+            img = scipy.misc.imresize(img, (self.img_height, self.img_width))
+        except Exception as e:
+            print("img_file", img_file)
+            print("e", e)
+            print("img:", img)
+            print("img.shape", img.shape)
         return img, zoom_x, zoom_y
 
     def read_raw_calib_file(self, filepath):

@@ -208,7 +208,8 @@ def main():
         if args.with_gt:
             errors, error_names = validate_with_gt(args, val_loader, disp_net, 0, logger, output_writers)
         else:
-            errors, error_names = validate_without_gt(args, val_loader, disp_net, pose_exp_net, 0, logger, output_writers)
+            errors, error_names = validate_without_gt(args, val_loader, disp_net, pose_exp_net, 0, logger,
+                                                      args.epoch_size, output_writers)
         for error, name in zip(errors, error_names):
             training_writer.add_scalar(name, error, 0)
         error_string = ', '.join('{} : {:.3f}'.format(name, error) for name, error in zip(error_names[2:9], errors[2:9]))
@@ -229,7 +230,7 @@ def main():
                 errors, error_names = validate_with_gt(args, val_loader, disp_net, epoch, logger, output_writers)
             else:
                 errors, error_names = validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
-                                                          output_writers)
+                                                          args.epoch_size, output_writers)
             error_string = ', '.join('{} : {:.3f}'.format(name, error) for name, error in zip(error_names, errors))
             logger.valid_writer.write(' * Avg {}'.format(error_string))
 
@@ -274,8 +275,8 @@ def train(args, train_loader, disp_net, pose_exp_net, optimizer, epoch_size, log
     end = time.time()
     logger.train_bar.update(0)
 
-    for i, (tgt_img, ref_imgs, seg, boundary, ref_segs, ref_boundaries,
-            intrinsics, intrinsics_inv, sample) in enumerate(train_loader):
+    for i, (tgt_img, ref_imgs, seg, ref_segs,
+            intrinsics, intrinsics_inv, sample, obj) in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
         tgt_img = tgt_img.to(device)
@@ -376,7 +377,7 @@ def train(args, train_loader, disp_net, pose_exp_net, optimizer, epoch_size, log
 
 
 @torch.no_grad()
-def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger, output_writers=[]):
+def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger, epoch_size, output_writers=[]):
     global device
     batch_time = AverageMeter()
     losses = AverageMeter(i=3, precision=4)
@@ -395,8 +396,11 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
     output_imgs = []
     output_img_names = []
 
-    for i, (tgt_img, ref_imgs, seg, boundary, ref_segs,
-            ref_boundaries, intrinsics, intrinsics_inv, sample) in enumerate(val_loader):
+    for i, (tgt_img, ref_imgs, seg, ref_segs,
+            intrinsics, intrinsics_inv, sample, obj) in enumerate(val_loader):
+        if i > epoch_size:
+            break
+
         print("val loader", i, "output_writer:", len(output_writers))
         print(i, sample["ref_seg"])
 
@@ -404,8 +408,8 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
         ref_imgs = [img.to(device) for img in ref_imgs]
         seg = seg.to(device)
         ref_segs = [img.to(device) for img in ref_segs]
-        boundary = boundary.to(device)
-        ref_boundaries = [img.to(device) for img in ref_boundaries]
+        # boundary = boundary.to(device)
+        # ref_boundaries = [img.to(device) for img in ref_boundaries]
         intrinsics = intrinsics.to(device)
         intrinsics_inv = intrinsics_inv.to(device)
 
@@ -451,20 +455,21 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
                 scene = seg_paths[-2]
                 img_name = seg_paths[-1]
 
-                path = Path(args.output_dir) / scene
+                if args.pretrained_disp:
+                    path = Path(args.output_dir) / scene
 
-                if not os.path.exists(path):
-                    os.makedirs(path)
+                    if not os.path.exists(path):
+                        os.makedirs(path)
 
-                output_img = tensor2array(ref_warped) * 255
-                # output_img = np.transpose(output_img, (shape[1], shape[2], shape[0]))
-                output_img = np.einsum('CWH->WHC', output_img)
-                assert output_img.shape[2] == 3
-                # print(path/img_name)
+                    output_img = tensor2array(ref_warped) * 255
+                    # output_img = np.transpose(output_img, (shape[1], shape[2], shape[0]))
+                    output_img = np.einsum('CWH->WHC', output_img)
+                    assert output_img.shape[2] == 3
+                    # print(path/img_name)
 
-                output_imgs.append(output_img)
-                output_img_names.append(path / img_name)
-                cv2.imwrite(path / img_name, output_img)
+                    output_imgs.append(output_img)
+                    output_img_names.append(path / img_name)
+                    cv2.imwrite(path / img_name, output_img)
 
                 if i < len(output_writers):
                     output_writers[i].add_image('val Warped Outputs {}'.format(j),
