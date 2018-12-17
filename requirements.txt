@@ -1,5 +1,4 @@
 numpy
-torch
 imageio
 scipy
 argparse
