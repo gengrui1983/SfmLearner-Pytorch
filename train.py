@@ -60,6 +60,8 @@ parser.add_argument('--print-freq', default=10, type=int,
                     metavar='N', help='print frequency')
 parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                     help='evaluate model on validation set')
+parser.add_argument('--train_mode', dest='train_mode', action='store_true',
+                    help='force check training mode')
 parser.add_argument('--output-dir', dest='output_dir', default=None, metavar='PATH', help='path of output image')
 parser.add_argument('--pretrained-disp', dest='pretrained_disp', default=None, metavar='PATH',
                     help='path to pre-trained dispnet model')
@@ -203,7 +205,7 @@ def main():
     logger = TermLogger(n_epochs=args.epochs, train_size=min(len(train_loader), args.epoch_size), valid_size=len(val_loader))
     logger.epoch_bar.start()
 
-    if args.pretrained_disp or args.evaluate:
+    if args.pretrained_disp and args.evaluate:
         logger.reset_valid_bar()
         if args.with_gt:
             errors, error_names = validate_with_gt(args, val_loader, disp_net, 0, logger, output_writers)
@@ -305,6 +307,7 @@ def train(args, train_loader, disp_net, pose_exp_net, optimizer, epoch_size, log
             loss_2 = 0
         loss_3 = smooth_loss(depth_seg)
         loss = w1*loss_1 + w2*loss_2 + w3*loss_3
+        print("-------loss:{}, loss.size:{}-----------".format(loss, loss.size()))
 
         if i > 0 and n_iter % args.print_freq == 0:
             train_writer.add_scalar('photometric_error', loss_1.item(), n_iter)
@@ -355,6 +358,7 @@ def train(args, train_loader, disp_net, pose_exp_net, optimizer, epoch_size, log
 
         # compute gradient and do Adam step
         optimizer.zero_grad()
+        print("test loss", loss)
         loss.backward()
         optimizer.step()
 
@@ -401,8 +405,8 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
         if i > epoch_size:
             break
 
-        print("val loader", i, "output_writer:", len(output_writers))
-        print(i, sample["ref_seg"])
+        # print("val loader", i, "output_writer:", len(output_writers))
+        # print(i, sample["ref_seg"])
 
         tgt_img = tgt_img.to(device)
         ref_imgs = [img.to(device) for img in ref_imgs]
@@ -455,7 +459,7 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
                 scene = seg_paths[-2]
                 img_name = seg_paths[-1]
 
-                if args.pretrained_disp:
+                if args.pretrained_disp and args.output_dir:
                     path = Path(args.output_dir) / scene
 
                     if not os.path.exists(path):
@@ -494,6 +498,7 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
                                                             disp_unraveled.max(-1)[0]]).numpy()
 
         loss = w1*loss_1 + w2*loss_2 + w3*loss_3
+        print("loss:", loss)
         losses.update([loss, loss_1, loss_2])
 
         # measure elapsed time

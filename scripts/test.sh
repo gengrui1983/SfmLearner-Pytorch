@@ -9,4 +9,6 @@ output_dir=../data/KITTI_result
 
 python3 train.py ${formatted_dataset} --segmentation ${segmentation} --boundary ${boundary} -b2 -m0.2 -s0.1 \
 --epoch-size 7000 --sequence-length 3 --log-output \
---pretrained-exppose ${pretrained_exp_pose} --pretrained-disp ${pretrained_disp} --output-dir ${output_dir}
+--pretrained-exppose ${pretrained_exp_pose} \
+--pretrained-disp ${pretrained_disp} --output-dir ${output_dir} \
+--train_mode false
