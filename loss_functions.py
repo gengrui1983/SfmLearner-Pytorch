@@ -1,8 +1,10 @@
 from __future__ import division
+
 import torch
-from torch import nn
 import torch.nn.functional as F
+from torch import nn
 from torch.autograd import Variable
+
 from inverse_warp import inverse_warp
 
 
@@ -14,6 +16,9 @@ def photometric_reconstruction_loss(tgt_img, ref_imgs, intrinsics, intrinsics_in
         reconstruction_loss = 0
         b, _, h, w = depth.size()
         downscale = tgt_img.size(2)/h
+
+        import pdb
+        pdb.set_trace()
 
         tgt_img_scaled = F.interpolate(tgt_img, (h, w), mode='area')
         ref_imgs_scaled = [F.interpolate(ref_img, (h, w), mode='area') for ref_img in ref_imgs]

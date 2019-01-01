@@ -17,6 +17,17 @@ def upconv(in_planes, out_planes):
     )
 
 
+class PoseImageNet(nn.Module):
+
+    def __init__(self, pose, nb_ref_imgs=2):
+        super(PoseImageNet, self).__init__()
+        self.pose = pose
+        self.nb_ref_imgs = nb_ref_imgs
+
+        upconv_planes = [256, 128, 64, 32, 32, 16]
+
+
+
 class PoseExpNet(nn.Module):
 
     def __init__(self, nb_ref_imgs=2, output_exp=False):
@@ -57,6 +68,8 @@ class PoseExpNet(nn.Module):
 
     def forward(self, target_image, ref_imgs):
         assert(len(ref_imgs) == self.nb_ref_imgs)
+        import pdb
+        pdb.set_trace()
         input = [target_image]
         input.extend(ref_imgs)
         input = torch.cat(input, 1)

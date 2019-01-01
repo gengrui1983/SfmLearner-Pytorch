@@ -1,4 +1,5 @@
 from __future__ import division
+
 import torch
 import torch.nn.functional as F
 
@@ -179,6 +180,9 @@ def inverse_warp(img, depth, pose, intrinsics, intrinsics_inv, rotation_mode='eu
     assert(intrinsics_inv.size() == intrinsics.size())
 
     batch_size, _, img_height, img_width = img.size()
+
+    import pdb
+    pdb.set_trace()
 
     cam_coords = pixel2cam(depth, intrinsics_inv)  # [B,3,H,W]
 

@@ -294,6 +294,7 @@ def train(args, train_loader, disp_net, pose_exp_net, optimizer, epoch_size, log
         disparities_seg = disp_net(seg)
         # disparities_boundary = disp_net(boundary)
         depth_seg = [1 / disp for disp in disparities_seg]
+
         # depth_boundary = [1/disp for disp in disparities_boundary]
         explainability_mask, pose = pose_exp_net(seg, ref_segs)
 
@@ -420,6 +421,8 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
         # compute output
         disp = disp_net(seg)
         depth = 1/disp
+        import pdb;
+        pdb.set_trace()
         explainability_mask, pose = pose_exp_net(seg, ref_segs)
 
         loss_1 = photometric_reconstruction_loss(seg, ref_segs,
@@ -448,6 +451,8 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
                                             tensor2array(1. / disp[0], max_value=None),
                                             epoch)
 
+            import pdb
+            pdb.set_trace()
             # log warped images along with explainability mask
             for j, ref in enumerate(ref_segs):
                 ref_warped = inverse_warp(ref[:1], depth[:1,0], pose[:1,j],
