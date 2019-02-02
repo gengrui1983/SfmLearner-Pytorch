@@ -308,7 +308,7 @@ def train(args, train_loader, disp_net, pose_exp_net, optimizer, epoch_size, log
             loss_2 = 0
         loss_3 = smooth_loss(depth_seg)
         loss = w1*loss_1 + w2*loss_2 + w3*loss_3
-        print("-------loss:{}, loss.size:{}-----------".format(loss, loss.size()))
+        # print("-------loss:{}, loss.size:{}-----------".format(loss, loss.size()))
 
         if i > 0 and n_iter % args.print_freq == 0:
             train_writer.add_scalar('photometric_error', loss_1.item(), n_iter)
@@ -359,7 +359,7 @@ def train(args, train_loader, disp_net, pose_exp_net, optimizer, epoch_size, log
 
         # compute gradient and do Adam step
         optimizer.zero_grad()
-        print("test loss", loss)
+        # print("test loss", loss)
         loss.backward()
         optimizer.step()
 
@@ -386,7 +386,7 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
     global device
     batch_time = AverageMeter()
     losses = AverageMeter(i=3, precision=4)
-    log_outputs = len(output_writers) > 0
+    log_outputs = len(output_writers) % 100 == 0 and not args.evaluate
     w1, w2, w3 = args.photo_loss_weight, args.mask_loss_weight, args.smooth_loss_weight
     poses = np.zeros(((len(val_loader)-1) * args.batch_size * (args.sequence_length-1),6))
     disp_values = np.zeros(((len(val_loader)-1) * args.batch_size * 3))
@@ -409,8 +409,8 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
         # print("val loader", i, "output_writer:", len(output_writers))
         # print(i, sample["ref_seg"])
 
-        tgt_img = tgt_img.to(device)
-        ref_imgs = [img.to(device) for img in ref_imgs]
+        # tgt_img = tgt_img.to(device)
+        # ref_imgs = [img.to(device) for img in ref_imgs]
         seg = seg.to(device)
         ref_segs = [img.to(device) for img in ref_segs]
         # boundary = boundary.to(device)
@@ -421,8 +421,7 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
         # compute output
         disp = disp_net(seg)
         depth = 1/disp
-        import pdb;
-        pdb.set_trace()
+
         explainability_mask, pose = pose_exp_net(seg, ref_segs)
 
         loss_1 = photometric_reconstruction_loss(seg, ref_segs,
@@ -451,59 +450,81 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
                                             tensor2array(1. / disp[0], max_value=None),
                                             epoch)
 
-            import pdb
-            pdb.set_trace()
-            # log warped images along with explainability mask
-            for j, ref in enumerate(ref_segs):
-                ref_warped = inverse_warp(ref[:1], depth[:1,0], pose[:1,j],
-                                          intrinsics[:1], intrinsics_inv[:1],
-                                          rotation_mode=args.rotation_mode,
-                                          padding_mode=args.padding_mode)[0]
+        if log_outputs and i < len(val_loader) - 1:
 
-                seg_paths = sample['seg'][j].split("/")
-                scene = seg_paths[-2]
-                img_name = seg_paths[-1]
-
-                if args.pretrained_disp and args.output_dir:
-                    path = Path(args.output_dir) / scene
-
-                    if not os.path.exists(path):
-                        os.makedirs(path)
-
-                    output_img = tensor2array(ref_warped) * 255
-                    # output_img = np.transpose(output_img, (shape[1], shape[2], shape[0]))
-                    output_img = np.einsum('CWH->WHC', output_img)
-                    assert output_img.shape[2] == 3
-                    # print(path/img_name)
-
-                    output_imgs.append(output_img)
-                    output_img_names.append(path / img_name)
-                    cv2.imwrite(path / img_name, output_img)
-
-                if i < len(output_writers):
-                    output_writers[i].add_image('val Warped Outputs {}'.format(j),
-                                                tensor2array(ref_warped),
-                                                epoch)
-                    output_writers[i].add_image('val Diff Outputs {}'.format(j),
-                                                tensor2array(0.5 * (seg[0] - ref_warped).abs()),
-                                                epoch)
-                    if explainability_mask is not None:
-                        output_writers[i].add_image('val Exp mask Outputs {}'.format(j),
-                                                    tensor2array(explainability_mask[0, j], max_value=1,
-                                                                 colormap='bone'),
-                                                    epoch)
-
-        if log_outputs and i < len(val_loader)-1:
-            step = args.batch_size*(args.sequence_length-1)
-            poses[i * step:(i+1) * step] = pose.cpu().view(-1,6).numpy()
+            step = args.batch_size * (args.sequence_length - 1) // 2
+            poses[i * step:(i + 1) * step] = pose.cpu().view(-1, 6).numpy()
             step = args.batch_size * 3
             disp_unraveled = disp.cpu().view(args.batch_size, -1)
-            disp_values[i * step:(i+1) * step] = torch.cat([disp_unraveled.min(-1)[0],
-                                                            disp_unraveled.median(-1)[0],
-                                                            disp_unraveled.max(-1)[0]]).numpy()
+            disp_values[i * step:(i + 1) * step] = torch.cat([disp_unraveled.min(-1)[0],
+                                                              disp_unraveled.median(-1)[0],
+                                                              disp_unraveled.max(-1)[0]]).numpy()
+
+            # save warped images along with explainability mask
+            for j, ref in enumerate(ref_segs):
+
+                # ref_warped = inverse_warp(seg[:1], depth[:1,0], pose[:1,j],
+                #                           intrinsics[:1], intrinsics_inv[:1],
+                #                           rotation_mode=args.rotation_mode,
+                #                           padding_mode=args.padding_mode)[0]
+
+                ref_warpeds = inverse_warp(seg, depth[:, 0], pose[:, j],
+                                           intrinsics, intrinsics_inv,
+                                           rotation_mode=args.rotation_mode,
+                                           padding_mode=args.padding_mode)
+
+                for index, ref_warped in enumerate(ref_warpeds):
+
+                    seg_paths = sample['seg'][index].split("/")
+                    scene = seg_paths[-2]
+                    img_name = seg_paths[-1]
+
+                    if args.pretrained_disp and args.output_dir:
+                        path = Path(args.output_dir) / scene
+
+                        depth_path = Path('../data/KITTI_DEPTH_RESULT') / scene
+
+                        if not os.path.exists(path):
+                            os.makedirs(path)
+
+                        if not os.path.exists(depth_path):
+                            os.makedirs(depth_path)
+
+                        output_img = tensor2array(ref_warped) * 255
+                        # output_img = np.transpose(output_img, (shape[1], shape[2], shape[0]))
+                        output_img = np.einsum('CWH->WHC', output_img)
+                        assert output_img.shape[2] == 3
+                        # print(path/img_name)
+
+                        output_imgs.append(output_img)
+                        output_img_names.append(path / img_name)
+                        cv2.imwrite(path / img_name, output_img)
+
+                        # import pdb; pdb.set_trace()
+                        # depth_img = tensor2array(depth[index, 0], max_value=None) * 255
+                        tensor = depth[index, 0].detach().cpu()
+                        depth_img = (255 * tensor.squeeze().numpy()).clip(0, 255).astype(np.uint8)
+                        # depth_img = torch.unsqueeze(depth_img, 0)
+                        # depth_img = depth_img.transpose(2,0,1)
+                        # depth_img = np.einsum('CWH->WHC', depth_img)
+
+                        cv2.imwrite(depth_path / img_name, depth_img)
+
+                    if i < len(output_writers):
+                        output_writers[i].add_image('val Warped Outputs {}'.format(j),
+                                                    tensor2array(ref_warped),
+                                                    epoch)
+                        output_writers[i].add_image('val Diff Outputs {}'.format(j),
+                                                    tensor2array(0.5 * (seg[0] - ref_warped).abs()),
+                                                    epoch)
+                        if explainability_mask is not None:
+                            output_writers[i].add_image('val Exp mask Outputs {}'.format(j),
+                                                        tensor2array(explainability_mask[0, j], max_value=1,
+                                                                     colormap='bone'),
+                                                        epoch)
 
         loss = w1*loss_1 + w2*loss_2 + w3*loss_3
-        print("loss:", loss)
+        # print("loss:", loss)
         losses.update([loss, loss_1, loss_2])
 
         # measure elapsed time

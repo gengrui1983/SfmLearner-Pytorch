@@ -32,7 +32,7 @@ class PoseExpNet(nn.Module):
 
     def __init__(self, nb_ref_imgs=2, output_exp=False):
         super(PoseExpNet, self).__init__()
-        self.nb_ref_imgs = nb_ref_imgs
+        self.nb_ref_imgs = nb_ref_imgs // 2
         self.output_exp = output_exp
 
         conv_planes = [16, 32, 64, 128, 256, 256, 256]
@@ -68,8 +68,7 @@ class PoseExpNet(nn.Module):
 
     def forward(self, target_image, ref_imgs):
         assert(len(ref_imgs) == self.nb_ref_imgs)
-        import pdb
-        pdb.set_trace()
+
         input = [target_image]
         input.extend(ref_imgs)
         input = torch.cat(input, 1)

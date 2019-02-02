@@ -181,9 +181,6 @@ def inverse_warp(img, depth, pose, intrinsics, intrinsics_inv, rotation_mode='eu
 
     batch_size, _, img_height, img_width = img.size()
 
-    import pdb
-    pdb.set_trace()
-
     cam_coords = pixel2cam(depth, intrinsics_inv)  # [B,3,H,W]
 
     pose_mat = pose_vec2mat(pose, rotation_mode)  # [B,3,4]
@@ -192,6 +189,7 @@ def inverse_warp(img, depth, pose, intrinsics, intrinsics_inv, rotation_mode='eu
     proj_cam_to_src_pixel = intrinsics @ pose_mat  # [B, 3, 4]
 
     src_pixel_coords = cam2pixel(cam_coords, proj_cam_to_src_pixel[:,:,:3], proj_cam_to_src_pixel[:,:,-1:], padding_mode)  # [B,H,W,2]
+
     projected_img = F.grid_sample(img, src_pixel_coords, padding_mode=padding_mode)
 
     return projected_img

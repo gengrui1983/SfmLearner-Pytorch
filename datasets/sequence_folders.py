@@ -57,8 +57,11 @@ class SequenceFolder(data.Dataset):
         print("crawling...")
         sequence_set = []
         demi_length = (sequence_length - 1) // 2
-        shifts = list(range(-demi_length, demi_length + 1))
-        shifts.pop(demi_length)
+        # shifts = list(range(-demi_length, demi_length + 1))
+        # shifts.pop(demi_length)
+
+        shifts = list(range(-demi_length, 0))
+
         for scene, seg_scene in zip(self.scenes, self.seg_scenes):
             intrinsics = np.genfromtxt(scene / 'cam.txt').astype(np.float32).reshape((3, 3))
             imgs = sorted(scene.files('*.jpg'))
@@ -74,10 +77,12 @@ class SequenceFolder(data.Dataset):
                     sample['ref_seg'].append(segmentations[i + j])
                     # sample['ref_boundaries'].append(boundaries[i + j])
                 sequence_set.append(sample)
+
         if is_train:
             random.shuffle(sequence_set)
         self.samples = sequence_set
         # print(self.samples)
+
         print("length:", len(sequence_set))
 
     def crawl_folders_pix2pix(self):
