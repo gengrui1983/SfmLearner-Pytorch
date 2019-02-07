@@ -16,6 +16,7 @@ class BaseOptions():
                                  help='path to images (should have subfolders trainA, trainB, valA, valB, etc)')
         self.parser.add_argument('--data', required=True, help='path to images')
         self.parser.add_argument('--segmentation', required=True, help='path to segmentations')
+        self.parser.add_argument('--depth', required=True, help='path to depth')
         self.parser.add_argument('--dataset_format', default='sequential', help='path to images')
         self.parser.add_argument('--seed', type=int, default=100, help='path to images')
         self.parser.add_argument('--save_path', required=True, help='the path to save images')

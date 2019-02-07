@@ -24,12 +24,14 @@ class SequenceFolder(data.Dataset):
         transform functions must take in a list a images and a numpy array (usually intrinsics matrix)
     """
 
-    def __init__(self, root, segmentation, boundary=None, seed=None, train=True, sequence_length=2, transform=None,
+    def __init__(self, root, segmentation, depth=None, seed=None, train=True, sequence_length=2, transform=None,
                  target_transform=None, pix2pix=False):
         np.random.seed(seed)
         random.seed(seed)
         self.root = Path(root)
         self.segmentation = Path(segmentation)
+        if pix2pix:
+            self.depth = Path(depth)
         scene_list_path = None
         if not pix2pix:
             # scene_list_path = self.root / 'train.txt' if train else self.root / 'train_pix2pix.txt'
@@ -43,6 +45,8 @@ class SequenceFolder(data.Dataset):
         print(os.path.abspath("."), self.root)
         self.scenes = [self.root/folder[:-1] for folder in open(scene_list_path)]
         self.seg_scenes = [self.segmentation / folder[:-1] for folder in open(scene_list_path)]
+        if pix2pix:
+            self.depth_scenes = [self.depth / folder[:-1] for folder in open(scene_list_path)]
 
         self.transform = transform
         self.samples = None
@@ -87,12 +91,13 @@ class SequenceFolder(data.Dataset):
 
     def crawl_folders_pix2pix(self):
         sequence_set = []
-        for scene, seg_scene in zip(self.scenes, self.seg_scenes):
+        for scene, seg_scene, depth_scene in zip(self.scenes, self.seg_scenes, self.depth_scenes):
             imgs = sorted(scene.files('*.jpg'))
             segmentations = sorted(seg_scene.files('*.png'))
+            depths = sorted(depth_scene.files('*.png'))
             print(len(imgs), len(segmentations))
             for i in range(len(segmentations) - 1):
-                sample = {'ref': imgs[i], 'seg': segmentations[i], 'tgt': imgs[i + 1]}
+                sample = {'ref': imgs[i], 'seg': segmentations[i + 1], 'tgt': imgs[i + 1], 'depth': depths[i + 1]}
                 sequence_set.append(sample)
         random.shuffle(sequence_set)
         self.samples = sequence_set
@@ -134,6 +139,13 @@ class SequenceFolder(data.Dataset):
             tgt_img = load_as_float(sample['tgt'])
             ref_img = load_as_float(sample['ref'])
             seg = load_as_float(sample['seg'])
+            depth = load_as_float(sample['depth'])
+
+            depth = torch.from_numpy(depth).float() / 255
+            depth.unsqueeze_(0)
+
+            # print(depth.size())
+            # depth = depth.expand(1, w, h)
 
             # print("tgt shape:", tgt_img.shape)
             # print("ref shape:", ref_img.shape)
@@ -141,9 +153,16 @@ class SequenceFolder(data.Dataset):
             if self.transform is not None:
                 tgt_img = self.transform(tgt_img)
                 ref_img = self.transform(ref_img)
+
                 seg = self.transform(seg)
+                # print(seg.size())
+                # depth = self.transform(depth)
+
+                # print("----", depth.size())
 
             A = torch.cat((ref_img, seg), 0)
+
+            A = torch.cat((A, depth), 0)
             B = tgt_img
 
         # print("index", index, "seg", seg.shape, "tgt_img", tgt_img.shape)

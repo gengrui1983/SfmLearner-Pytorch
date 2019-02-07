@@ -8,6 +8,6 @@ pretrained_disp=./checkpoints/KITTI_formatted,epoch_size3000,m0.2/01-25-23:58/di
 output_dir=../data/KITTI_result
 
 python3 train.py ${formatted_dataset} --segmentation ${segmentation} --boundary ${boundary} -b2 -m0.2 -s0.1 \
---epoch-size 9000 --sequence-length 3 --log-output \
+--epoch-size 19000 --sequence-length 3 --log-output \
 --pretrained-exppose ${pretrained_exp_pose} \
 --pretrained-disp ${pretrained_disp} --output-dir ${output_dir} --evaluate

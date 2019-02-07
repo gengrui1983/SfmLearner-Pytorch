@@ -139,7 +139,7 @@ def main():
         val_set = SequenceFolder(
             args.data,
             segmentation=args.segmentation,
-            boundary=args.boundary,
+            # boundary=args.boundary,
             transform=valid_transform,
             seed=args.seed,
             train=False,
@@ -386,7 +386,7 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
     global device
     batch_time = AverageMeter()
     losses = AverageMeter(i=3, precision=4)
-    log_outputs = len(output_writers) % 100 == 0 and not args.evaluate
+    log_outputs = len(output_writers) % 100 == 0 or not args.evaluate
     w1, w2, w3 = args.photo_loss_weight, args.mask_loss_weight, args.smooth_loss_weight
     poses = np.zeros(((len(val_loader)-1) * args.batch_size * (args.sequence_length-1),6))
     disp_values = np.zeros(((len(val_loader)-1) * args.batch_size * 3))
@@ -450,7 +450,7 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
                                             tensor2array(1. / disp[0], max_value=None),
                                             epoch)
 
-        if log_outputs and i < len(val_loader) - 1:
+        if i < len(val_loader) - 1:
 
             step = args.batch_size * (args.sequence_length - 1) // 2
             poses[i * step:(i + 1) * step] = pose.cpu().view(-1, 6).numpy()

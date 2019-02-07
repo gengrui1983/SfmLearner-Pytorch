@@ -110,7 +110,7 @@ def main():
     train_set = SequenceFolder(
         opt.data,
         opt.segmentation,
-        # opt.boundary,
+        depth=opt.depth,
         transform=train_transform,
         seed=opt.seed,
         train=True,
