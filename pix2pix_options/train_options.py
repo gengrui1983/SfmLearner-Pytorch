@@ -31,6 +31,8 @@ class TrainOptions(BaseOptions):
         self.parser.add_argument('--no_lsgan', action='store_true',
                                  help='do *not* use least square GAN, if false, use vanilla GAN')
         self.parser.add_argument('--with_gt', action='store_false', help='Train the model with the ground truth')
+        self.parser.add_argument('--pix2pix_benchmark', action='store_true',
+                                 help='Train a model of the Pix2pix benchmark')
         self.parser.add_argument('--lambda_A', type=float, default=10.0, help='weight for cycle loss (A -> B -> A)')
         self.parser.add_argument('--lambda_B', type=float, default=10.0, help='weight for cycle loss (B -> A -> B)')
         self.parser.add_argument('--lambda_identity', type=float, default=0.5,

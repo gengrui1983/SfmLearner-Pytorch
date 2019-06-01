@@ -7,6 +7,8 @@ import torch.utils.data as data
 from imageio import imread
 from path import Path
 
+from util.util import read_calib_file
+
 
 def load_as_float(path):
     return np.asarray(imread(path).astype(np.float32))
@@ -25,14 +27,16 @@ class SequenceFolder(data.Dataset):
     """
 
     def __init__(self, root, segmentation, depth=None, seed=None, train=True, sequence_length=2, transform=None,
-                 target_transform=None, pix2pix=False):
+                 target_transform=None, pix2pix=False, p2p_benchmark=False, odemetry=False):
         np.random.seed(seed)
         random.seed(seed)
         self.root = Path(root)
         self.segmentation = Path(segmentation)
+        self.p2p_benchmark = p2p_benchmark
         if pix2pix:
             self.depth = Path(depth)
         scene_list_path = None
+
         if not pix2pix:
             # scene_list_path = self.root / 'train.txt' if train else self.root / 'train_pix2pix.txt'
             scene_list_path = self.root / 'train.txt' if train else self.root / 'train_pix2pix_val.txt'
@@ -43,12 +47,14 @@ class SequenceFolder(data.Dataset):
         #     self.boundary_scenes = [self.boundary / folder[:-1] for folder in open(scene_list_path)]
 
         print(os.path.abspath("."), self.root)
-        self.scenes = [self.root/folder[:-1] for folder in open(scene_list_path)]
-        self.seg_scenes = [self.segmentation / folder[:-1] for folder in open(scene_list_path)]
+        self.scenes = [self.root / folder[:-1] / "image_2" for folder in open(scene_list_path)]
+        self.seg_scenes = [self.segmentation / "image_2" / folder[:-1] for folder in open(scene_list_path)]
         if pix2pix:
+            self.seg_scenes = [self.segmentation / folder[:-1] for folder in open(scene_list_path)]
             self.depth_scenes = [self.depth / folder[:-1] for folder in open(scene_list_path)]
 
         self.transform = transform
+
         self.samples = None
         self.pix2pix = pix2pix
         # self.crawl_folders(sequence_length)
@@ -67,8 +73,13 @@ class SequenceFolder(data.Dataset):
         shifts = list(range(-demi_length, 0))
 
         for scene, seg_scene in zip(self.scenes, self.seg_scenes):
-            intrinsics = np.genfromtxt(scene / 'cam.txt').astype(np.float32).reshape((3, 3))
-            imgs = sorted(scene.files('*.jpg'))
+            # intrinsics = np.genfromtxt(scene / 'cam.txt').astype(np.float32).reshape((3, 3))
+
+            Pn = read_calib_file(scene / 'calib.txt')
+
+            intrinsics = np.reshape(Pn['P2'].astype(np.float32), (3, 4))[:, :3]
+
+            imgs = sorted(scene.files('*.png'))
             segmentations = sorted(seg_scene.files('*.png'))
             # boundaries = sorted(boundary_scene.files('*.png'))
             if len(imgs) < sequence_length:
@@ -92,7 +103,7 @@ class SequenceFolder(data.Dataset):
     def crawl_folders_pix2pix(self):
         sequence_set = []
         for scene, seg_scene, depth_scene in zip(self.scenes, self.seg_scenes, self.depth_scenes):
-            imgs = sorted(scene.files('*.jpg'))
+            imgs = sorted(scene.files('*.png'))
             segmentations = sorted(seg_scene.files('*.png'))
             depths = sorted(depth_scene.files('*.png'))
             print(len(imgs), len(segmentations))
@@ -160,10 +171,14 @@ class SequenceFolder(data.Dataset):
 
                 # print("----", depth.size())
 
-            A = torch.cat((ref_img, seg), 0)
+            if self.p2p_benchmark:
+                A = ref_img
+                B = tgt_img
+            else:
+                A = torch.cat((ref_img, seg), 0)
 
-            A = torch.cat((A, depth), 0)
-            B = tgt_img
+                A = torch.cat((A, depth), 0)
+                B = tgt_img
 
         # print("index", index, "seg", seg.shape, "tgt_img", tgt_img.shape)
         # return tgt_img, ref_imgs, seg, intrinsics, np.linalg.inv(intrinsics)

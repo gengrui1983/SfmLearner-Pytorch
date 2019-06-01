@@ -114,7 +114,8 @@ def main():
         transform=train_transform,
         seed=opt.seed,
         train=True,
-        pix2pix=True
+        pix2pix=True,
+        p2p_benchmark=opt.pix2pix_benchmark
     )
 
     # if no Groundtruth is avalaible, Validation set is the same type as training set to measure photometric loss from warping

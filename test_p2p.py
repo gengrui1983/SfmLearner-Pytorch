@@ -47,7 +47,8 @@ test_set = SequenceFolder(
     transform=train_transform,
     seed=opt.seed,
     train=False,
-    pix2pix=True
+    pix2pix=True,
+    p2p_benchmark=opt.pix2pix_benchmark
 )
 
 dataset_loader = torch.utils.data.DataLoader(
@@ -63,6 +64,10 @@ webpage = html.HTML(web_dir, 'Experiment = %s, Phase = %s, Epoch = %s' % (opt.na
 # test
 
 results = []
+l1_results = []
+
+count = 0
+
 for i, (tgt_img, _, _, _, _, _, sample, data) in enumerate(dataset_loader):
     if i >= opt.how_many != -1:
         break
@@ -73,14 +78,19 @@ for i, (tgt_img, _, _, _, _, _, sample, data) in enumerate(dataset_loader):
     visuals = model.get_current_visuals()
     # img_path = model.get_image_paths()
 
-    tgt_path = sample['tgt'][0].split('/')[-2:]
+    B_images = model.get_real_fake_B()
+
+    tgt_path = sample['tgt'][0].split('/')[-3:]
     file_path = tgt_path[-1].split('.')[0]
-    scence_path = tgt_path[-2]
+    scence_path = os.path.join(tgt_path[-3], tgt_path[-2])
 
     img_path = scence_path + "/" + file_path
     # img_path = "/".join(tgt_path)
 
     # print(Path(img_path))
+
+    fake_B_tensor = B_images['fake_B']
+    real_B_tensor = B_images['real_B']
 
     real_A = visuals['real_A']
     real_B = visuals['real_B']
@@ -100,14 +110,37 @@ for i, (tgt_img, _, _, _, _, _, sample, data) in enumerate(dataset_loader):
     fake_B = fake_B.type('torch.DoubleTensor')
 
     ssim = SSIM()
-    r = ssim(real_B, fake_B)
+    r = ssim(fake_B_tensor, real_B_tensor)
+
+    l1_criterion = torch.nn.L1Loss()
+    # l1_criterion.cuda()
+    # l1_origin = l1_criterion(fake_B_tensor, real_B_tensor)
+    # l1 = l1_origin
+
+    l1 = torch.mean(torch.abs(fake_B_tensor - real_B_tensor))
+
+    # import pdb
+    # pdb.set_trace()
+
+    # w, h = real_B.size()[-1], real_B.size()[-2]
+
+    # l1 = l1 / w / h
 
     if r < 1:
         results.append(r)
         print("****************", i, r, sum(results) / i)
+    count = i
+
+    l1_results.append(l1)
+    print("----------------------", i, l1)
+    print("mean of L1: {}".format(sum(l1_results) / count))
 
     # print('%04d: process image... %s' % (i, img_path))
     visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio)
+
+print(l1_results)
+
+print("mean of L1: {}".format(sum(l1_results) / count))
 
 webpage.save()
 

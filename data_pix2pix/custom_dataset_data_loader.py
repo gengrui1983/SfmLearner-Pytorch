@@ -7,7 +7,7 @@ def CreateDataset(opt):
     dataset = None
     if opt.dataset_mode == 'sequence_folders':
         from datasets.sequence_folders import SequenceFolder
-        dataset = SequenceFolder(opt.root, opt.segmentation, pix2pix=True)
+        dataset = SequenceFolder(opt.root, opt.segmentation, pix2pix=True, p2p_benchmark=opt.pix2pix_benchmark)
     else:
         if opt.dataset_mode == 'aligned':
             from data_pix2pix.aligned_dataset import AlignedDataset

@@ -102,6 +102,7 @@ class Visualizer():
 
     # errors: dictionary of error labels and values
     def plot_current_errors(self, epoch, counter_ratio, opt, errors):
+
         if not hasattr(self, 'plot_data'):
             self.plot_data = {'X': [], 'Y': [], 'legend': list(errors.keys())}
         self.plot_data['X'].append(epoch + counter_ratio)
@@ -131,8 +132,10 @@ class Visualizer():
         image_dir = webpage.get_image_dir()
         short_path = ntpath.basename(image_path[0])
         name = os.path.splitext(short_path)[0]
-        scene_path = image_path.split('/')[0]
-        image_short_name = image_path.split('/')[1]
+
+        paths = image_path.split('/')
+        scene_path = os.path.join(paths[0], paths[1])
+        image_short_name = paths[2]
 
         webpage.add_header(name)
         ims = []

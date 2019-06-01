@@ -142,12 +142,12 @@ class Pix2PixModel(BaseModel):
         self.optimizer_G.step()
 
     def get_current_errors(self):
-        print(self.loss_G_GAN)
-        return OrderedDict([('G_GAN', self.loss_G_GAN.data),
-                            ('G_GAN_feature', self.loss_G_GAN_Feat.data),
-                            ('G_L1', self.loss_G_L1.data),
-                            ('D_real', self.loss_D_real.data),
-                            ('D_fake', self.loss_D_fake.data)
+
+        return OrderedDict([('G_GAN', self.loss_G_GAN.item()),
+                            ('G_GAN_feature', self.loss_G_GAN_Feat.item()),
+                            ('G_L1', self.loss_G_L1.item()),
+                            ('D_real', self.loss_D_real.item()),
+                            ('D_fake', self.loss_D_fake.item())
                             ]) if not self.no_ganFeat_loss else OrderedDict([('G_GAN', self.loss_G_GAN.data[0]),
                                                                              ('G_L1', self.loss_G_L1.data[0]),
                                                                              ('D_real', self.loss_D_real.data[0]),
@@ -167,3 +167,6 @@ class Pix2PixModel(BaseModel):
     def save(self, label):
         self.save_network(self.netG, 'G', label, self.gpu_ids)
         self.save_network(self.netD, 'D', label, self.gpu_ids)
+
+    def get_real_fake_B(self):
+        return OrderedDict([('fake_B', self.fake_B.data), ('real_B', self.real_B.data)])

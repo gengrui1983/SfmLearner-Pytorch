@@ -39,6 +39,9 @@ class BaseModel():
     def save(self, label):
         pass
 
+    def get_real_fake_B(self):
+        pass
+
     # helper saving function that can be used by subclasses
     def save_network(self, network, network_label, epoch_label, gpu_ids):
         save_filename = '%s_net_%s.pth' % (epoch_label, network_label)

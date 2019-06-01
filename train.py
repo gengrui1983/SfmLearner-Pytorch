@@ -62,6 +62,8 @@ parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                     help='evaluate model on validation set')
 parser.add_argument('--train_mode', dest='train_mode', action='store_true',
                     help='force check training mode')
+parser.add_argument('--odemetry', dest='odemetry', action='store_true',
+                    help='using odemetry dataset')
 parser.add_argument('--output-dir', dest='output_dir', default=None, metavar='PATH', help='path of output image')
 parser.add_argument('--pretrained-disp', dest='pretrained_disp', default=None, metavar='PATH',
                     help='path to pre-trained dispnet model')
@@ -125,7 +127,8 @@ def main():
         transform=train_transform,
         seed=args.seed,
         train=True,
-        sequence_length=args.sequence_length
+        sequence_length=args.sequence_length,
+        odemetry=args.odemetry
     )
 
     # if no Groundtruth is avalaible, Validation set is the same type as training set to measure photometric loss from warping

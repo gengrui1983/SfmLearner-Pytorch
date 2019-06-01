@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 
-data=../data/kitti_odemetry_224_224
-segmentation=../data/KITTI_odemetry_result
-name=pix2pix-odemetry
-#name=pix2pix-multiscale-feature_matching_loss
+data=../data/KITTI_formatted
+segmentation=../data/KITTI_result
+name=pix2pix-benchmark_multiscale-feature_matching_loss
 depth=../data/KITTI_DEPTH_RESULT
-save=../data/KITTI_final_results
+save=../data/KITTI_final_results_benchmark
 
 python test_p2p.py \
     --data ${data} --segmentation ${segmentation} \
@@ -17,7 +16,7 @@ python test_p2p.py \
     --which_direction AtoB \
     --dataset_mode aligned \
     --norm batch \
-    --use_dist \
-    --input_nc 7 \
+    --pix2pix_benchmark \
+    --input_nc 3 \
     --how_many -1 \
     --results_dir ${save}
