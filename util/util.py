@@ -80,3 +80,17 @@ def read_calib_file(path):
                     pass
 
     return data
+
+
+def read_transformations(path):
+    float_chars = set("0123456789.e+- ")
+    data = []
+    with open(path, 'r') as f:
+        values = f.read()
+        if float_chars.issuperset(values):
+            try:
+                data = np.array(list(map(float, values.split(' '))))
+            except ValueError:
+                pass
+
+    return data

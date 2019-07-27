@@ -58,10 +58,13 @@ class ArrayToTensor(object):
     def __call__(self, images, intrinsics):
         tensors = []
         for im in images:
-            # put it from HWC to CHW format
-            im = np.transpose(im, (2, 0, 1))
-            # handle numpy array
+
+            if len(im.shape) == 3:
+                # put it from HWC to CHW format
+                im = np.transpose(im, (2, 0, 1))
+                # handle numpy array
             tensors.append(torch.from_numpy(im).float()/255)
+
         return tensors, intrinsics
 
 

@@ -128,7 +128,8 @@ def main():
         seed=args.seed,
         train=True,
         sequence_length=args.sequence_length,
-        odemetry=args.odemetry
+        odemetry=args.odemetry,
+        depth_prediction=False
     )
 
     # if no Groundtruth is avalaible, Validation set is the same type as training set to measure photometric loss from warping
@@ -281,7 +282,7 @@ def train(args, train_loader, disp_net, pose_exp_net, optimizer, epoch_size, log
     logger.train_bar.update(0)
 
     for i, (tgt_img, ref_imgs, seg, ref_segs,
-            intrinsics, intrinsics_inv, sample, obj) in enumerate(train_loader):
+            intrinsics, intrinsics_inv, sample, obj, _, _, _) in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
         tgt_img = tgt_img.to(device)
@@ -405,7 +406,8 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
     output_img_names = []
 
     for i, (tgt_img, ref_imgs, seg, ref_segs,
-            intrinsics, intrinsics_inv, sample, obj) in enumerate(val_loader):
+            intrinsics, intrinsics_inv, sample, obj,_,_,_) in enumerate(val_loader):
+
         if i > epoch_size:
             break
 
@@ -482,6 +484,10 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
                     scene = seg_paths[-2]
                     img_name = seg_paths[-1]
 
+                    pose_file = Path(sample['seg'][index].replace('png', 'txt'))
+                    with open(pose_file, 'w+') as file:
+                        file.write(" ".join(["%f" % x for x in pose[0].detach().cpu()[0].numpy().tolist()]))
+
                     if args.pretrained_disp and args.output_dir:
                         path = Path(args.output_dir) / scene
 
@@ -512,6 +518,8 @@ def validate_without_gt(args, val_loader, disp_net, pose_exp_net, epoch, logger,
                         # depth_img = np.einsum('CWH->WHC', depth_img)
 
                         cv2.imwrite(depth_path / img_name, depth_img)
+
+
 
                     if i < len(output_writers):
                         output_writers[i].add_image('val Warped Outputs {}'.format(j),
