@@ -1,22 +1,17 @@
 import argparse
 import csv
-import os
 import time
 
 import torch
 import torch.backends.cudnn as cudnn
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim
 import torch.utils.data
-from path import Path
 from tensorboardX import SummaryWriter
 
 import custom_transforms
 import models
-from inverse_warp import inverse_warp
 from logger import TermLogger, AverageMeter
-from loss_functions import photometric_reconstruction_loss, explainability_loss, smooth_loss, compute_errors
 from utils import tensor2array, save_checkpoint_depth_seg, save_path_formatter
 
 parser = argparse.ArgumentParser(description='Structure from Motion Learner training on KITTI and CityScapes Dataset',
@@ -264,12 +259,10 @@ def train(args, train_loader, depth_seg_net, optimizer, epoch_size, logger, trai
 
         # print(args.training_output_freq, n_iter)
         if args.training_output_freq > 0 and n_iter % args.training_output_freq == 0:
-            print(tgt_depth[0].shape, tgt_depth[0].ndimension())
             train_writer.add_image('train Input seg', tensor2array(tgt_seg[0]), n_iter)
             train_writer.add_image('train Input depth', tensor2array(tgt_depth[0], max_value=1), n_iter)
 
             for k, pred_seg in enumerate(pred):
-                print(pred[k], pred[k].shape)
                 train_writer.add_image('train output normalized {}'.format(k),
                                        tensor2array(pred[k]),
                                        n_iter)

@@ -6,7 +6,6 @@ import torch
 import torch.utils.data as data
 from imageio import imread
 from path import Path
-import ipdb
 
 from util.util import read_calib_file, read_transformations
 

@@ -11,7 +11,7 @@ pretrained_disp=./checkpoints/kitti_odemetry_224_224,epoch_size3000,m0.2/06-07-2
 python3 train.py ${formatted_dataset} \
         --segmentation ${segmentation} -b4 -m0.2 -s0.1\
         --epoch-size 3000 --sequence-length 3 --log-output \
-        --epochs 30 \
-        --odemetry \
-        --pretrained-exppose ${pretrained_exppose} \
-        --pretrained-disp ${pretrained_disp}
+        --epochs 30 --odemetry
+        #--pretrained-exppose ${pretrained_exppose} \
+        #--pretrained-disp ${pretrained_disp} \
+
